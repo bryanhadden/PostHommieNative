@@ -10,6 +10,7 @@ import {
   Dimensions,
   StatusBar,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { launchImageLibrary, MediaType, ImagePickerResponse } from 'react-native-image-picker';
 import Share from 'react-native-share';
@@ -27,10 +28,35 @@ interface MediaItem {
   fileName?: string;
 }
 
+interface Platform {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  isSelected: boolean;
+}
+
 const { width, height } = Dimensions.get('window');
 
 export const HomeScreen: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<MediaItem[]>([]);
+  const [isPosting, setIsPosting] = useState(false);
+  const [platforms, setPlatforms] = useState<Platform[]>([
+    {
+      id: 'instagram',
+      name: 'Instagram',
+      description: 'Share to your story or feed',
+      emoji: '📸',
+      isSelected: false,
+    },
+    {
+      id: 'tiktok',
+      name: 'TikTok',
+      description: 'Create engaging short videos',
+      emoji: '🎵',
+      isSelected: false,
+    },
+  ]);
 
   const selectMedia = () => {
     const options = {
@@ -141,6 +167,105 @@ export const HomeScreen: React.FC = () => {
     setSelectedMedia([]);
   };
 
+  const togglePlatform = (platformId: string) => {
+    setPlatforms(prev => 
+      prev.map(platform => 
+        platform.id === platformId 
+          ? { ...platform, isSelected: !platform.isSelected }
+          : platform
+      )
+    );
+  };
+
+  const getSelectedPlatforms = () => {
+    return platforms.filter(platform => platform.isSelected);
+  };
+
+  const postToSelectedPlatforms = async () => {
+    const selectedPlatforms = getSelectedPlatforms();
+    
+    if (selectedMedia.length === 0) {
+      Alert.alert('No Media Selected', 'Please select photos or videos first.');
+      return;
+    }
+
+    if (selectedPlatforms.length === 0) {
+      Alert.alert('No Platforms Selected', 'Please select at least one platform to share to.');
+      return;
+    }
+
+    setIsPosting(true);
+    const results: { platform: string; success: boolean; error?: string }[] = [];
+
+    for (const platform of selectedPlatforms) {
+      try {
+        if (platform.id === 'instagram') {
+          await postToInstagramDirect();
+          results.push({ platform: platform.name, success: true });
+        } else if (platform.id === 'tiktok') {
+          await postToTikTokDirect();
+          results.push({ platform: platform.name, success: true });
+        }
+      } catch (error: any) {
+        console.error(`Error posting to ${platform.name}:`, error);
+        results.push({ 
+          platform: platform.name, 
+          success: false, 
+          error: error.message || 'Unknown error'
+        });
+      }
+    }
+
+    setIsPosting(false);
+    showPostingResults(results);
+  };
+
+  const showPostingResults = (results: { platform: string; success: boolean; error?: string }[]) => {
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    let message = '';
+    
+    if (successCount > 0) {
+      const successPlatforms = results.filter(r => r.success).map(r => r.platform).join(', ');
+      message += `✅ Successfully posted to: ${successPlatforms}\n\n`;
+    }
+    
+    if (failureCount > 0) {
+      const failurePlatforms = results.filter(r => !r.success).map(r => r.platform).join(', ');
+      message += `❌ Failed to post to: ${failurePlatforms}`;
+    }
+
+    Alert.alert(
+      successCount === results.length ? '🎉 All Posts Successful!' : 
+      successCount > 0 ? '⚠️ Partial Success' : '❌ Posting Failed',
+      message.trim()
+    );
+  };
+
+  const postToInstagramDirect = async () => {
+    const shareOptions: ShareOptions = {
+      title: 'Check out this amazing content!',
+      message: 'Shared via PostHommie',
+      url: selectedMedia[0].uri,
+      social: Share.Social.INSTAGRAM,
+    };
+
+    const result = await Share.shareSingle(shareOptions);
+    return result;
+  };
+
+  const postToTikTokDirect = async () => {
+    const shareOptions: ShareOptions = {
+      title: 'Share via PostHommie',
+      message: 'Check out this amazing content created with PostHommie!',
+      url: selectedMedia[0].uri,
+    };
+
+    const result = await Share.open(shareOptions);
+    return result;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -211,32 +336,70 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Share Options */}
+        {/* Platform Selection */}
         {selectedMedia.length > 0 && (
           <View style={styles.shareCard}>
-            <Text style={styles.shareCardTitle}>Share to platforms</Text>
+            <Text style={styles.shareCardTitle}>Select platforms to post to</Text>
             
-            <TouchableOpacity style={styles.platformButton} onPress={postToInstagram}>
-              <View style={styles.platformIcon}>
-                <Text style={styles.platformEmoji}>📸</Text>
-              </View>
-              <View style={styles.platformInfo}>
-                <Text style={styles.platformName}>Instagram</Text>
-                <Text style={styles.platformDesc}>Share to your story or feed</Text>
-              </View>
-              <Text style={styles.arrow}>→</Text>
-            </TouchableOpacity>
+            {platforms.map(platform => (
+              <TouchableOpacity 
+                key={platform.id}
+                style={[
+                  styles.platformButton, 
+                  platform.isSelected && styles.platformButtonSelected
+                ]} 
+                onPress={() => togglePlatform(platform.id)}
+              >
+                <View style={[
+                  styles.platformIcon,
+                  platform.isSelected && styles.platformIconSelected
+                ]}>
+                  <Text style={styles.platformEmoji}>{platform.emoji}</Text>
+                </View>
+                <View style={styles.platformInfo}>
+                  <Text style={[
+                    styles.platformName,
+                    platform.isSelected && styles.platformNameSelected
+                  ]}>
+                    {platform.name}
+                  </Text>
+                  <Text style={[
+                    styles.platformDesc,
+                    platform.isSelected && styles.platformDescSelected
+                  ]}>
+                    {platform.description}
+                  </Text>
+                </View>
+                <View style={styles.checkbox}>
+                  {platform.isSelected && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
 
-            <TouchableOpacity style={styles.platformButton} onPress={postToTikTok}>
-              <View style={styles.platformIcon}>
-                <Text style={styles.platformEmoji}>🎵</Text>
-              </View>
-              <View style={styles.platformInfo}>
-                <Text style={styles.platformName}>TikTok</Text>
-                <Text style={styles.platformDesc}>Create engaging short videos</Text>
-              </View>
-              <Text style={styles.arrow}>→</Text>
-            </TouchableOpacity>
+            {/* Auto Post Button */}
+            {getSelectedPlatforms().length > 0 && (
+              <TouchableOpacity 
+                style={[styles.autoPostButton, isPosting && styles.autoPostButtonDisabled]} 
+                onPress={postToSelectedPlatforms}
+                disabled={isPosting}
+              >
+                {isPosting ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.autoPostButtonText}>Posting...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.buttonContentRow}>
+                    <Text style={styles.autoPostIcon}>🚀</Text>
+                    <Text style={styles.autoPostButtonText}>
+                      Post to {getSelectedPlatforms().length} platform{getSelectedPlatforms().length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -508,6 +671,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+  platformButtonSelected: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+    borderWidth: 2,
+  },
   platformIcon: {
     width: 40,
     height: 40,
@@ -522,6 +690,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  platformIconSelected: {
+    backgroundColor: '#2563EB',
+  },
   platformEmoji: {
     fontSize: 18,
   },
@@ -534,9 +705,60 @@ const styles = StyleSheet.create({
     color: '#222222',
     marginBottom: 2,
   },
+  platformNameSelected: {
+    color: '#2563EB',
+  },
   platformDesc: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  platformDescSelected: {
+    color: '#1D4ED8',
+  },
+
+  // Checkbox
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: 'bold',
+  },
+
+  // Auto Post Button
+  autoPostButton: {
+    backgroundColor: '#FF385C',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  autoPostButtonDisabled: {
+    opacity: 0.7,
+  },
+  autoPostButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  autoPostIcon: {
+    fontSize: 18,
+  },
+  buttonContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   // Features Card
