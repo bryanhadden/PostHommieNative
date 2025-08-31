@@ -200,15 +200,24 @@ export const HomeScreen: React.FC = () => {
 
     for (const platform of selectedPlatforms) {
       try {
+        let result;
         if (platform.id === 'instagram') {
-          await postToInstagramDirect();
-          results.push({ platform: platform.name, success: true });
+          result = await postToInstagramDirect();
         } else if (platform.id === 'tiktok') {
-          await postToTikTokDirect();
-          results.push({ platform: platform.name, success: true });
+          result = await postToTikTokDirect();
+        }
+        
+        results.push({ 
+          platform: platform.name, 
+          success: result?.success ?? true 
+        });
+        
+        // Add small delay between opening apps
+        if (selectedPlatforms.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } catch (error: any) {
-        console.error(`Error posting to ${platform.name}:`, error);
+        console.error(`Error opening ${platform.name}:`, error);
         results.push({ 
           platform: platform.name, 
           success: false, 
@@ -237,6 +246,13 @@ export const HomeScreen: React.FC = () => {
       message += `❌ Couldn't open: ${failurePlatforms}`;
     }
 
+    const hasFailures = failureCount > 0;
+    const failedApps = results.filter(r => !r.success).map(r => r.platform);
+    
+    if (hasFailures && failedApps.includes('TikTok')) {
+      message += '\n\n💡 TikTok not installed? We opened the App Store for you!';
+    }
+    
     Alert.alert(
       successCount === results.length ? '🎉 All Apps Opened!' : 
       successCount > 0 ? '⚠️ Some Apps Opened' : '❌ Unable to Open Apps',
@@ -285,29 +301,53 @@ export const HomeScreen: React.FC = () => {
 
   const postToTikTokDirect = async () => {
     try {
-      // Try to open TikTok app directly
-      const tiktokURL = 'tiktok://';
-      const canOpen = await Linking.canOpenURL(tiktokURL);
+      // Try multiple TikTok URL schemes
+      const tiktokURLs = [
+        'tiktok://create',     // TikTok create mode
+        'tiktok://',           // General TikTok
+        'musically://',        // Old Musical.ly scheme
+      ];
       
-      if (canOpen) {
-        await Linking.openURL(tiktokURL);
+      let opened = false;
+      
+      for (const url of tiktokURLs) {
+        try {
+          const canOpen = await Linking.canOpenURL(url);
+          if (canOpen) {
+            await Linking.openURL(url);
+            opened = true;
+            break;
+          }
+        } catch (urlError) {
+          console.log(`Failed to open ${url}:`, urlError);
+          continue;
+        }
+      }
+      
+      if (opened) {
         return { success: true };
       } else {
-        // TikTok not installed, open App Store
+        // TikTok not installed, try App Store
         const appStoreURL = 'https://apps.apple.com/app/tiktok/id835599320';
         await Linking.openURL(appStoreURL);
-        throw new Error('TikTok not installed');
+        throw new Error('TikTok not installed - opened App Store');
       }
     } catch (error) {
-      // Fallback to share sheet
-      const shareOptions: ShareOptions = {
-        title: 'Share to TikTok',
-        message: 'Complete your post in TikTok',
-        url: selectedMedia[0].uri,
-      };
+      console.log('TikTok deep link failed, trying share sheet:', error);
       
-      const result = await Share.open(shareOptions);
-      return result;
+      // Fallback to share sheet
+      try {
+        const shareOptions: ShareOptions = {
+          title: 'Share to TikTok',
+          message: 'Complete your post in TikTok',
+          url: selectedMedia[0].uri,
+        };
+        
+        const result = await Share.open(shareOptions);
+        return { success: true }; // Share sheet opened successfully
+      } catch (shareError) {
+        throw new Error('Could not open TikTok or share options');
+      }
     }
   };
 
