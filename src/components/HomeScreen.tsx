@@ -11,6 +11,7 @@ import {
   StatusBar,
   SafeAreaView,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { launchImageLibrary, MediaType, ImagePickerResponse } from 'react-native-image-picker';
 import Share from 'react-native-share';
@@ -228,12 +229,12 @@ export const HomeScreen: React.FC = () => {
     
     if (successCount > 0) {
       const successPlatforms = results.filter(r => r.success).map(r => r.platform).join(', ');
-      message += `✅ Successfully posted to: ${successPlatforms}\n\n`;
+      message += `✅ Opened: ${successPlatforms}\n\n`;
     }
     
     if (failureCount > 0) {
       const failurePlatforms = results.filter(r => !r.success).map(r => r.platform).join(', ');
-      message += `❌ Failed to post to: ${failurePlatforms}`;
+      message += `❌ Couldn't open: ${failurePlatforms}`;
     }
 
     Alert.alert(
@@ -245,39 +246,69 @@ export const HomeScreen: React.FC = () => {
 
   const postToInstagramDirect = async () => {
     try {
-      // First try Instagram-specific sharing
+      // Try to open Instagram app directly
+      const instagramURL = 'instagram://camera';
+      const canOpen = await Linking.canOpenURL(instagramURL);
+      
+      if (canOpen) {
+        await Linking.openURL(instagramURL);
+        return { success: true };
+      } else {
+        // Instagram not installed, open App Store
+        const appStoreURL = 'https://apps.apple.com/app/instagram/id389801252';
+        await Linking.openURL(appStoreURL);
+        throw new Error('Instagram not installed');
+      }
+    } catch (error) {
+      // Fallback to share sheet if deep link fails
       const shareOptions: ShareOptions = {
-        title: 'Share via PostHommie',
-        message: 'Check out this amazing content!',
+        title: 'Share to Instagram',
+        message: 'Complete your post in Instagram',
         url: selectedMedia[0].uri,
         social: Share.Social.INSTAGRAM,
       };
+      
+      try {
+        const result = await Share.shareSingle(shareOptions);
+        return result;
+      } catch (shareError) {
+        // Final fallback to general share
+        const generalShareOptions: ShareOptions = {
+          title: 'Share via PostHommie',
+          url: selectedMedia[0].uri,
+        };
+        const result = await Share.open(generalShareOptions);
+        return result;
+      }
+    }
+  };
 
-      const result = await Share.shareSingle(shareOptions);
-      return result;
+  const postToTikTokDirect = async () => {
+    try {
+      // Try to open TikTok app directly
+      const tiktokURL = 'tiktok://';
+      const canOpen = await Linking.canOpenURL(tiktokURL);
+      
+      if (canOpen) {
+        await Linking.openURL(tiktokURL);
+        return { success: true };
+      } else {
+        // TikTok not installed, open App Store
+        const appStoreURL = 'https://apps.apple.com/app/tiktok/id835599320';
+        await Linking.openURL(appStoreURL);
+        throw new Error('TikTok not installed');
+      }
     } catch (error) {
-      // Fallback to general share sheet if Instagram-specific fails
+      // Fallback to share sheet
       const shareOptions: ShareOptions = {
-        title: 'Share to Instagram',
-        message: 'Open Instagram to complete your post',
+        title: 'Share to TikTok',
+        message: 'Complete your post in TikTok',
         url: selectedMedia[0].uri,
       };
       
       const result = await Share.open(shareOptions);
       return result;
     }
-  };
-
-  const postToTikTokDirect = async () => {
-    // TikTok doesn't have direct sharing, so we use the share sheet
-    const shareOptions: ShareOptions = {
-      title: 'Share to TikTok',
-      message: 'Open TikTok to complete your post',
-      url: selectedMedia[0].uri,
-    };
-
-    const result = await Share.open(shareOptions);
-    return result;
   };
 
   return (
@@ -354,7 +385,7 @@ export const HomeScreen: React.FC = () => {
         {selectedMedia.length > 0 && (
           <View style={styles.shareCard}>
             <Text style={styles.shareCardTitle}>Select platforms to share to</Text>
-            <Text style={styles.shareCardSubtitle}>We'll open each app for you to complete your post</Text>
+            <Text style={styles.shareCardSubtitle}>We'll open each app directly - no share sheet!</Text>
             
             {platforms.map(platform => (
               <TouchableOpacity 
@@ -409,7 +440,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.buttonContentRow}>
                     <Text style={styles.autoPostIcon}>🚀</Text>
                     <Text style={styles.autoPostButtonText}>
-                      Open {getSelectedPlatforms().length} app{getSelectedPlatforms().length > 1 ? 's' : ''} to share
+                      Open {getSelectedPlatforms().map(p => p.name).join(' & ')}
                     </Text>
                   </View>
                 )}
