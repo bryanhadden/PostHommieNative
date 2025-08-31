@@ -8,6 +8,8 @@ import {
   ScrollView,
   Image,
   Dimensions,
+  StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { launchImageLibrary, MediaType, ImagePickerResponse } from 'react-native-image-picker';
 import Share from 'react-native-share';
@@ -25,7 +27,7 @@ interface MediaItem {
   fileName?: string;
 }
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export const HomeScreen: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<MediaItem[]>([]);
@@ -62,17 +64,40 @@ export const HomeScreen: React.FC = () => {
 
     try {
       const shareOptions: ShareOptions = {
-        title: 'Share to Instagram',
-        message: 'Check out this amazing content!',
+        title: 'Check out this amazing content!',
+        message: 'Shared via PostHommie',
         url: selectedMedia[0].uri,
         social: Share.Social.INSTAGRAM,
       };
 
       const result = await Share.shareSingle(shareOptions);
       console.log('Instagram share result:', result);
-    } catch (error) {
+      
+      // Show success message if sharing completed
+      if (result.success !== false) {
+        Alert.alert('Success!', 'Content shared to Instagram successfully!');
+      }
+    } catch (error: any) {
       console.error('Instagram share error:', error);
-      Alert.alert('Error', 'Unable to share to Instagram. Make sure Instagram is installed.');
+      
+      // Handle specific error cases
+      if (error.message?.includes('User did not share')) {
+        // User cancelled sharing - don't show error
+        return;
+      } else if (error.message?.includes('not installed')) {
+        Alert.alert('Instagram Not Found', 'Please install Instagram to share content.');
+      } else {
+        // Try opening general share sheet as fallback
+        try {
+          await Share.open({
+            title: 'Share via PostHommie',
+            message: 'Check out this amazing content!',
+            url: selectedMedia[0].uri,
+          });
+        } catch (fallbackError) {
+          Alert.alert('Share Error', 'Unable to share content. Please try again.');
+        }
+      }
     }
   };
 
@@ -84,18 +109,31 @@ export const HomeScreen: React.FC = () => {
 
     try {
       const shareOptions: ShareOptions = {
-        title: 'Share to TikTok',
-        message: 'Check out this amazing content!',
+        title: 'Share via PostHommie',
+        message: 'Check out this amazing content created with PostHommie!',
         url: selectedMedia[0].uri,
-        // Note: TikTok doesn't have a direct share option in react-native-share
-        // We'll use the generic share which will show TikTok in the share sheet
+        // TikTok doesn't have a direct share option in react-native-share
+        // We use the generic share which will show TikTok in the share sheet
       };
 
       const result = await Share.open(shareOptions);
-      console.log('TikTok share result:', result);
-    } catch (error) {
-      console.error('TikTok share error:', error);
-      Alert.alert('Error', 'Unable to share content.');
+      console.log('Share result:', result);
+      
+      // Show success message
+      Alert.alert('Share Sheet Opened', 'Choose TikTok from the share options to post your content!');
+    } catch (error: any) {
+      console.error('Share error:', error);
+      
+      // Handle specific error cases
+      if (error.message?.includes('User did not share') || error.message?.includes('cancelled')) {
+        // User cancelled sharing - don't show error
+        return;
+      } else {
+        Alert.alert(
+          'Share Unavailable', 
+          'Unable to open share options. Please make sure you have apps installed that can share media content.'
+        );
+      }
     }
   };
 
@@ -104,201 +142,456 @@ export const HomeScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      {/* Header Section - Airbnb Style */}
       <View style={styles.header}>
-        <Text style={styles.title}>PostHommie</Text>
-        <Text style={styles.subtitle}>Share your moments on Instagram & TikTok</Text>
-      </View>
-
-      <View style={styles.actionSection}>
-        <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-          <Text style={styles.buttonText}>📷 Select Photos/Videos</Text>
-        </TouchableOpacity>
-
-        {selectedMedia.length > 0 && (
-          <TouchableOpacity style={styles.clearButton} onPress={clearSelection}>
-            <Text style={styles.clearButtonText}>Clear Selection</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {selectedMedia.length > 0 && (
-        <View style={styles.previewSection}>
-          <Text style={styles.previewTitle}>Selected Media ({selectedMedia.length})</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mediaScroll}>
-            {selectedMedia.map((media, index) => (
-              <View key={index} style={styles.mediaItem}>
-                <Image source={{ uri: media.uri }} style={styles.mediaPreview} />
-                <Text style={styles.mediaType}>
-                  {media.type?.startsWith('video') ? '🎥' : '📷'}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {selectedMedia.length > 0 && (
-        <View style={styles.shareSection}>
-          <Text style={styles.shareTitle}>Share to:</Text>
-          <View style={styles.shareButtons}>
-            <TouchableOpacity style={styles.instagramButton} onPress={postToInstagram}>
-              <Text style={styles.shareButtonText}>📸 Instagram</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.tiktokButton} onPress={postToTikTok}>
-              <Text style={styles.shareButtonText}>🎵 TikTok</Text>
-            </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <Text style={styles.greeting}>Welcome back</Text>
+          <View style={styles.profileImage}>
+            <Text style={styles.profileInitial}>P</Text>
           </View>
         </View>
-      )}
-
-      <View style={styles.instructions}>
-        <Text style={styles.instructionText}>
-          1. Tap "Select Photos/Videos" to choose media from your phone
-        </Text>
-        <Text style={styles.instructionText}>
-          2. Preview your selected media
-        </Text>
-        <Text style={styles.instructionText}>
-          3. Choose Instagram or TikTok to share your content
-        </Text>
+        <Text style={styles.mainTitle}>Ready to share your story?</Text>
+        <Text style={styles.subtitle}>Capture moments and share them with the world</Text>
       </View>
-    </ScrollView>
+
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Main Action Card */}
+        <View style={styles.mainCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Share Your Moments</Text>
+            <Text style={styles.cardSubtitle}>Select photos or videos to get started</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.primaryButton} onPress={selectMedia}>
+            <View style={styles.buttonIcon}>
+              <Text style={styles.iconText}>📸</Text>
+            </View>
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonTitle}>Choose Media</Text>
+              <Text style={styles.buttonSubtitle}>Photos & Videos</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Selected Media Preview */}
+        {selectedMedia.length > 0 && (
+          <View style={styles.previewCard}>
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>Selected ({selectedMedia.length})</Text>
+              <TouchableOpacity onPress={clearSelection} style={styles.clearButton}>
+                <Text style={styles.clearText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.mediaScroll}
+              contentContainerStyle={styles.mediaScrollContent}
+            >
+              {selectedMedia.map((media, index) => (
+                <View key={index} style={styles.mediaCard}>
+                  <Image source={{ uri: media.uri }} style={styles.mediaImage} />
+                  <View style={styles.mediaTypeIndicator}>
+                    <Text style={styles.mediaTypeIcon}>
+                      {media.type?.startsWith('video') ? '🎥' : '📷'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Share Options */}
+        {selectedMedia.length > 0 && (
+          <View style={styles.shareCard}>
+            <Text style={styles.shareCardTitle}>Share to platforms</Text>
+            
+            <TouchableOpacity style={styles.platformButton} onPress={postToInstagram}>
+              <View style={styles.platformIcon}>
+                <Text style={styles.platformEmoji}>📸</Text>
+              </View>
+              <View style={styles.platformInfo}>
+                <Text style={styles.platformName}>Instagram</Text>
+                <Text style={styles.platformDesc}>Share to your story or feed</Text>
+              </View>
+              <Text style={styles.arrow}>→</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.platformButton} onPress={postToTikTok}>
+              <View style={styles.platformIcon}>
+                <Text style={styles.platformEmoji}>🎵</Text>
+              </View>
+              <View style={styles.platformInfo}>
+                <Text style={styles.platformName}>TikTok</Text>
+                <Text style={styles.platformDesc}>Create engaging short videos</Text>
+              </View>
+              <Text style={styles.arrow}>→</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Features Section */}
+        <View style={styles.featuresCard}>
+          <Text style={styles.featuresTitle}>How PostHommie works</Text>
+          
+          <View style={styles.featuresList}>
+            <View style={styles.featureItem}>
+              <View style={styles.featureNumber}>
+                <Text style={styles.featureNumberText}>1</Text>
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Select your media</Text>
+                <Text style={styles.featureDescription}>Choose photos or videos from your gallery</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureNumber}>
+                <Text style={styles.featureNumberText}>2</Text>
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Preview your content</Text>
+                <Text style={styles.featureDescription}>Review your selection before sharing</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureItem}>
+              <View style={styles.featureNumber}>
+                <Text style={styles.featureNumberText}>3</Text>
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Share to platforms</Text>
+                <Text style={styles.featureDescription}>Post directly to Instagram or TikTok</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F7F7F7',
   },
+  
+  // Header Styles
   header: {
-    padding: 20,
-    alignItems: 'center',
     backgroundColor: '#fff',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  actionSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  selectButton: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 12,
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 16,
   },
-  buttonText: {
+  greeting: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  profileImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF385C',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInitial: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
   },
-  clearButton: {
-    backgroundColor: '#FF3B30',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#222222',
+    marginBottom: 8,
+    lineHeight: 34,
   },
-  clearButtonText: {
-    color: '#fff',
+  subtitle: {
     fontSize: 16,
-    fontWeight: '500',
+    color: '#6B7280',
+    lineHeight: 24,
   },
-  previewSection: {
-    paddingHorizontal: 20,
+
+  // Content Styles
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+
+  // Card Styles
+  mainCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardHeader: {
     marginBottom: 20,
   },
-  previewTitle: {
+  cardTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
+    fontWeight: '700',
+    color: '#222222',
+    marginBottom: 6,
   },
-  mediaScroll: {
-    marginBottom: 10,
+  cardSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
   },
-  mediaItem: {
-    marginRight: 15,
-    alignItems: 'center',
-  },
-  mediaPreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    backgroundColor: '#e9ecef',
-  },
-  mediaType: {
-    fontSize: 20,
-    marginTop: 5,
-  },
-  shareSection: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  shareTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-  },
-  shareButtons: {
+
+  // Primary Button
+  primaryButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  instagramButton: {
-    backgroundColor: '#E4405F',
-    flex: 1,
-    padding: 15,
-    borderRadius: 12,
     alignItems: 'center',
-    marginRight: 10,
-  },
-  tiktokButton: {
-    backgroundColor: '#000',
-    flex: 1,
-    padding: 15,
+    backgroundColor: '#F8F9FA',
+    padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
-    marginLeft: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  shareButtonText: {
-    color: '#fff',
+  buttonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FF385C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  iconText: {
+    fontSize: 20,
+  },
+  buttonContent: {
+    flex: 1,
+  },
+  buttonTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#222222',
+    marginBottom: 2,
   },
-  instructions: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+  buttonSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  arrow: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+
+  // Preview Card
+  previewCard: {
     backgroundColor: '#fff',
-    margin: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  previewTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222222',
+  },
+  clearButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
+  },
+  clearText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  mediaScroll: {
+    marginHorizontal: -4,
+  },
+  mediaScrollContent: {
+    paddingHorizontal: 4,
+  },
+  mediaCard: {
+    width: 100,
+    height: 100,
     borderRadius: 12,
+    marginHorizontal: 6,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  mediaTypeIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  mediaTypeIcon: {
+    fontSize: 12,
+  },
+
+  // Share Card
+  shareCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  shareCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222222',
+    marginBottom: 16,
+  },
+
+  // Platform Buttons
+  platformButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  platformIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  instructionText: {
+  platformEmoji: {
+    fontSize: 18,
+  },
+  platformInfo: {
+    flex: 1,
+  },
+  platformName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222222',
+    marginBottom: 2,
+  },
+  platformDesc: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
+    color: '#6B7280',
+  },
+
+  // Features Card
+  featuresCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  featuresTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#222222',
+    marginBottom: 20,
+  },
+  featuresList: {
+    gap: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  featureNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF385C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  featureNumberText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  featureContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222222',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: '#6B7280',
     lineHeight: 20,
   },
 });
