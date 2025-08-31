@@ -237,28 +237,42 @@ export const HomeScreen: React.FC = () => {
     }
 
     Alert.alert(
-      successCount === results.length ? '🎉 All Posts Successful!' : 
-      successCount > 0 ? '⚠️ Partial Success' : '❌ Posting Failed',
-      message.trim()
+      successCount === results.length ? '🎉 All Apps Opened!' : 
+      successCount > 0 ? '⚠️ Some Apps Opened' : '❌ Unable to Open Apps',
+      message.trim() || 'Complete your posts in each app that opened.'
     );
   };
 
   const postToInstagramDirect = async () => {
-    const shareOptions: ShareOptions = {
-      title: 'Check out this amazing content!',
-      message: 'Shared via PostHommie',
-      url: selectedMedia[0].uri,
-      social: Share.Social.INSTAGRAM,
-    };
+    try {
+      // First try Instagram-specific sharing
+      const shareOptions: ShareOptions = {
+        title: 'Share via PostHommie',
+        message: 'Check out this amazing content!',
+        url: selectedMedia[0].uri,
+        social: Share.Social.INSTAGRAM,
+      };
 
-    const result = await Share.shareSingle(shareOptions);
-    return result;
+      const result = await Share.shareSingle(shareOptions);
+      return result;
+    } catch (error) {
+      // Fallback to general share sheet if Instagram-specific fails
+      const shareOptions: ShareOptions = {
+        title: 'Share to Instagram',
+        message: 'Open Instagram to complete your post',
+        url: selectedMedia[0].uri,
+      };
+      
+      const result = await Share.open(shareOptions);
+      return result;
+    }
   };
 
   const postToTikTokDirect = async () => {
+    // TikTok doesn't have direct sharing, so we use the share sheet
     const shareOptions: ShareOptions = {
-      title: 'Share via PostHommie',
-      message: 'Check out this amazing content created with PostHommie!',
+      title: 'Share to TikTok',
+      message: 'Open TikTok to complete your post',
       url: selectedMedia[0].uri,
     };
 
@@ -339,7 +353,8 @@ export const HomeScreen: React.FC = () => {
         {/* Platform Selection */}
         {selectedMedia.length > 0 && (
           <View style={styles.shareCard}>
-            <Text style={styles.shareCardTitle}>Select platforms to post to</Text>
+            <Text style={styles.shareCardTitle}>Select platforms to share to</Text>
+            <Text style={styles.shareCardSubtitle}>We'll open each app for you to complete your post</Text>
             
             {platforms.map(platform => (
               <TouchableOpacity 
@@ -394,7 +409,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.buttonContentRow}>
                     <Text style={styles.autoPostIcon}>🚀</Text>
                     <Text style={styles.autoPostButtonText}>
-                      Post to {getSelectedPlatforms().length} platform{getSelectedPlatforms().length > 1 ? 's' : ''}
+                      Open {getSelectedPlatforms().length} app{getSelectedPlatforms().length > 1 ? 's' : ''} to share
                     </Text>
                   </View>
                 )}
@@ -434,7 +449,7 @@ export const HomeScreen: React.FC = () => {
               </View>
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>Share to platforms</Text>
-                <Text style={styles.featureDescription}>Post directly to Instagram or TikTok</Text>
+                <Text style={styles.featureDescription}>Open apps with your content ready to post</Text>
               </View>
             </View>
           </View>
@@ -657,7 +672,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#222222',
+    marginBottom: 6,
+  },
+  shareCardSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
     marginBottom: 16,
+    lineHeight: 20,
   },
 
   // Platform Buttons
